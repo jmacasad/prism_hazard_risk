@@ -1,0 +1,5 @@
+anthropic>=0.49.0
+gradio>=5.22.0
+folium>=0.17.0
+requests>=2.32.0
+python-dotenv>=1.0.1
