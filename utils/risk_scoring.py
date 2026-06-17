@@ -79,8 +79,8 @@ def score_flood(flood: dict, property_data: dict, claims: dict) -> dict:
 
 
 def score_storm(weather: dict, property_data: dict, claims: dict) -> dict:
-    score = 20  # Base for coastal properties
-    factors = ["Coastal location — elevated storm surge exposure"]
+    score = 5  # Base storm exposure
+    factors = []
 
     wind_kmh = weather.get("wind_speed_kmh", 0) or 0
     if wind_kmh > 60:

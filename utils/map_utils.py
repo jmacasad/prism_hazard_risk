@@ -61,16 +61,18 @@ def build_risk_map(
             tooltip=f"Bushfire Prone: {bushfire_data.get('bpl_category', 'N/A')}",
         ).add_to(m)
 
-    # Coastal erosion buffer (always shown for demo coastal properties)
-    folium.Circle(
-        [lat, lon],
-        radius=250,
-        color="#8B6914",
-        fill=True,
-        fill_color="#D4A843",
-        fill_opacity=0.15,
-        tooltip="Coastal Erosion Buffer Zone",
-    ).add_to(m)
+    # Coastal erosion buffer — only shown when erosion score is meaningful
+    erosion_score = scores.get("perils", {}).get("erosion", {}).get("score", 0)
+    if erosion_score >= 20:
+        folium.Circle(
+            [lat, lon],
+            radius=250,
+            color="#8B6914",
+            fill=True,
+            fill_color="#D4A843",
+            fill_opacity=0.15,
+            tooltip=f"Coastal Erosion Buffer Zone (score: {erosion_score}/100)",
+        ).add_to(m)
 
     # Legend
     legend_html = f"""
@@ -110,17 +112,16 @@ def _band_to_folium_color(band: str) -> str:
 
 
 def geocode_address(address: str) -> tuple[float, float]:
-    """Best-effort geocode using Nominatim (free, no key required)."""
+    """Geocode using Nominatim. Raises ValueError if address cannot be resolved."""
     import requests
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {"q": address, "format": "json", "limit": 1, "countrycodes": "au"}
+    headers = {"User-Agent": "PRISM-Prototype/1.0"}
     try:
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {"q": address, "format": "json", "limit": 1, "countrycodes": "au"}
-        headers = {"User-Agent": "PRISM-Prototype/1.0"}
-        resp = requests.get(url, params=params, headers=headers, timeout=6)
+        resp = requests.get(url, params=params, headers=headers, timeout=10)
         results = resp.json()
         if results:
             return float(results[0]["lat"]), float(results[0]["lon"])
-    except Exception:
-        pass
-    # Default: Sydney northern beaches
-    return -33.6418, 151.3233
+    except Exception as e:
+        raise ValueError(f"Geocoding failed: {e}")
+    raise ValueError(f"Address not found in Australia: '{address}' — check spelling or try a nearby suburb.")

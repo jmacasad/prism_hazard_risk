@@ -2,16 +2,36 @@
 
 import requests
 
-# BoM nearest weather stations for demo locations
+# BoM nearest weather stations by state
 STATION_MAP = {
-    "sydney": "IDN60801.94767",
+    "nsw": "IDN60801.94767",
     "nsw_coast": "IDN60801.94767",
+    "sydney": "IDN60801.94767",
+    "vic": "IDV60801.94866",
     "victoria": "IDV60801.94866",
+    "qld": "IDQ60801.94576",
     "queensland": "IDQ60801.94576",
+    "wa": "IDW60801.94608",
+    "sa": "IDS60801.94672",
     "default": "IDN60801.94767",
 }
 
 BOM_BASE = "http://www.bom.gov.au/fwo"
+
+
+def state_hint_from_coords(lat: float, lon: float) -> str:
+    """Derive Australian state from coordinates."""
+    if lat < -37.5:
+        return "vic" if lon < 150 else "nsw"
+    if lat < -28 and lon < 138:
+        return "sa"
+    if lat < -28 and lon > 150:
+        return "nsw"
+    if lon < 130:
+        return "wa"
+    if lat < -22 and lon > 138:
+        return "qld"
+    return "default"
 
 
 def fetch_weather_observations(state_hint: str = "default") -> dict:

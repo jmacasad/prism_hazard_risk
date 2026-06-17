@@ -2,7 +2,7 @@
 
 import json
 import anthropic
-from data_sources.bom_api import fetch_weather_observations
+from data_sources.bom_api import fetch_weather_observations, state_hint_from_coords
 from data_sources.geoscience_api import fetch_geological_hazards
 from data_sources.mock_data import (
     fetch_property_data,
@@ -106,7 +106,8 @@ def _execute_tool(name: str, inputs: dict, address: str, lat: float, lon: float)
     if name == "get_property_data":
         return json.dumps(fetch_property_data(inputs.get("address", address)))
     elif name == "get_weather_observations":
-        return json.dumps(fetch_weather_observations(inputs.get("state_hint", "nsw_coast")))
+        hint = state_hint_from_coords(lat, lon)
+        return json.dumps(fetch_weather_observations(hint))
     elif name == "get_geological_hazards":
         return json.dumps(fetch_geological_hazards(inputs.get("lat", lat), inputs.get("lon", lon)))
     elif name == "get_satellite_analysis":
