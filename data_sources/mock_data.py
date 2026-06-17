@@ -14,7 +14,7 @@ def fetch_property_data(address: str) -> dict:
     year_built = r.randint(1985, 2018)
     stories = r.choice([1, 1, 2, 2, 3])
     return {
-        "source": "CoreLogic (simulated)",
+        "source": "CoreLogic (simulated — not available in demo)",
         "address": address,
         "estimated_value_aud": r.randint(5_000_000, 28_000_000),
         "land_area_sqm": r.randint(800, 5000),
