@@ -1,3 +1,14 @@
+---
+title: PRISM Hazard Risk
+emoji: 🏠
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 5.22.0
+app_file: app.py
+pinned: false
+---
+
 # PRISM — Property Risk Intelligence & Synthesis Manager
 
 A multi-agent AI application that assesses natural hazard risk for Australian properties. Designed to help insurance underwriters evaluate luxury coastal and bushland properties — reducing assessment time from 5–10 days to hours.

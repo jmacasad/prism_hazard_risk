@@ -9,7 +9,6 @@ from agents.orchestrator import run_assessment
 from utils.map_utils import build_risk_map
 
 load_dotenv()
-load_dotenv(dotenv_path="/Users/jasemacas/project/agents/.env", override=False)
 
 DEMO_ADDRESSES = [
     "42 Whale Beach Road, Whale Beach NSW 2107",
@@ -329,4 +328,4 @@ def build_ui():
 
 if __name__ == "__main__":
     ui = build_ui()
-    ui.launch(share=False, server_port=7860)
+    ui.launch(server_name="0.0.0.0", server_port=7860)
