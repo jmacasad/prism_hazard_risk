@@ -42,7 +42,7 @@ def run(client: anthropic.Anthropic, address: str, scores: dict, data_bundle: di
 ADDRESS: {address}
 OVERALL RISK SCORE: {scores.get('overall_score')}/100 — {scores.get('risk_band')} RISK
 CONFIDENCE: {scores.get('confidence')}
-PREMIUM LOADING RECOMMENDATION: {scores.get('premium_loading')}
+PREMIUM LOADING RECOMMENDATION: {scores.get('premium_loading')} — USE THIS EXACT VALUE THROUGHOUT THE REPORT. Do not derive or state a different loading range anywhere in the report.
 
 PERIL SCORES:
 - Bushfire: {perils.get('bushfire', {}).get('score', 'N/A')}/100 | Factors: {perils.get('bushfire', {}).get('factors', [])}
