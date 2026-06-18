@@ -56,7 +56,7 @@ def fetch_historical_claims(address: str, radius_km: int = 5) -> dict:
     r = random.Random(_seed(address) + 2)
     total_claims = r.randint(3, 22)
     return {
-        "source": "ISI Claims Database (simulated)",
+        "source": "Insurance Reference Services / IRS (simulated)",
         "radius_km": radius_km,
         "total_claims_10yr": total_claims,
         "bushfire_claims": r.randint(0, max(1, total_claims // 3)),

@@ -68,7 +68,7 @@ TOOLS = [
     },
     {
         "name": "get_historical_claims",
-        "description": "Retrieves historical insurance claims within 5km radius from ISI database.",
+        "description": "Retrieves historical insurance claims within 5km radius from Insurance Reference Services (IRS) database.",
         "input_schema": {
             "type": "object",
             "properties": {
