@@ -11,6 +11,12 @@ from data_sources.mock_data import (
     fetch_flood_overlay,
     fetch_bushfire_overlay,
 )
+from data_sources.tavily_property import (
+    fetch_property_data_tavily,
+    fetch_flood_overlay_tavily,
+    fetch_bushfire_overlay_tavily,
+    clear_cache as tavily_clear_cache,
+)
 from utils.map_utils import geocode_address
 
 SYSTEM_PROMPT = """You are the PRISM Data Harvesting Agent.
@@ -104,7 +110,12 @@ TOOLS = [
 
 def _execute_tool(name: str, inputs: dict, address: str, lat: float, lon: float) -> str:
     if name == "get_property_data":
-        return json.dumps(fetch_property_data(inputs.get("address", address)))
+        target = inputs.get("address", address)
+        mock = fetch_property_data(target)
+        live = fetch_property_data_tavily(target)
+        if live:
+            mock.update({k: v for k, v in live.items() if v is not None})
+        return json.dumps(mock)
     elif name == "get_weather_observations":
         hint = state_hint_from_coords(lat, lon)
         return json.dumps(fetch_weather_observations(hint))
@@ -115,14 +126,25 @@ def _execute_tool(name: str, inputs: dict, address: str, lat: float, lon: float)
     elif name == "get_historical_claims":
         return json.dumps(fetch_historical_claims(inputs.get("address", address)))
     elif name == "get_flood_overlay":
-        return json.dumps(fetch_flood_overlay(inputs.get("address", address)))
+        target = inputs.get("address", address)
+        mock = fetch_flood_overlay(target)
+        live = fetch_flood_overlay_tavily(target)
+        if live:
+            mock.update({k: v for k, v in live.items() if v is not None})
+        return json.dumps(mock)
     elif name == "get_bushfire_overlay":
-        return json.dumps(fetch_bushfire_overlay(inputs.get("address", address)))
+        target = inputs.get("address", address)
+        mock = fetch_bushfire_overlay(target)
+        live = fetch_bushfire_overlay_tavily(target)
+        if live:
+            mock.update({k: v for k, v in live.items() if v is not None})
+        return json.dumps(mock)
     return json.dumps({"error": f"Unknown tool: {name}"})
 
 
 def run(client: anthropic.Anthropic, address: str, lat: float, lon: float):
     """Run the Data Harvesting Agent. Yields (log_line, data_bundle_or_None) tuples."""
+    tavily_clear_cache()
     yield "🔍 Data Harvesting Agent activated — collecting property intelligence...", None
 
     messages = [

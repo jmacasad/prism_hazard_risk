@@ -13,13 +13,14 @@
 | **Bureau of Meteorology (BoM)** | LIVE | Real-time weather: temperature, wind speed/direction, humidity, fire danger rating |
 | **Geoscience Australia** | LIVE | Seismic hazard PGA, earthquake zone classification via ArcGIS REST API |
 | **OpenStreetMap / Nominatim** | LIVE | Geocoding — converts property address to lat/lon coordinates |
-| **CoreLogic / PSMA** | SIMULATED | Property value, construction type, roof type, year built, floor area, land area |
+| **Tavily Web Search** | LIVE | Land area, property type, flood overlay, bushfire overlay — scraped from property.com.au, domain.com.au, realestate.com.au |
+| **CoreLogic / PSMA** | SIMULATED (fallback) | Construction type, roof type, year built, floor area — used when Tavily cannot retrieve live data |
 | **Sentinel-2 NDVI** | SIMULATED | Vegetation density, defensible space assessment, tree canopy cover |
 | **Insurance Reference Services (IRS)** | SIMULATED | Historical claims within 5km radius over 10 years (bushfire, flood, storm) |
-| **Council Flood Planning Overlay** | SIMULATED | Flood zone category, 1-in-100-year flood level, stormwater infrastructure rating |
-| **RFS / CFA Bushfire Prone Land** | SIMULATED | Bushfire Prone Land designation, BAL rating factors, flame zone status |
+| **Council Flood Planning Overlay** | LIVE via Tavily / SIMULATED fallback | Flood zone status — live where detectable from public listings, simulated otherwise |
+| **RFS / CFA Bushfire Prone Land** | LIVE via Tavily / SIMULATED fallback | Bushfire Prone Land designation — live where detectable from public listings, simulated otherwise |
 
-> Simulated sources use a deterministic seed based on the property address — meaning the same address always returns the same data, making demo runs consistent and repeatable.
+> Tavily sources pull from publicly available property listing data. Simulated fallbacks use a deterministic seed based on the property address — meaning the same address always returns the same data, making demo runs consistent and repeatable.
 
 ---
 

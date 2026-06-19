@@ -51,8 +51,8 @@ PERIL SCORES:
 - Erosion: {perils.get('erosion', {}).get('score', 'N/A')}/100 | Factors: {perils.get('erosion', {}).get('factors', [])}
 - Landslip: {perils.get('landslip', {}).get('score', 'N/A')}/100 | Factors: {perils.get('landslip', {}).get('factors', [])}
 
-PROPERTY DATA (Note: estimated value is simulated for demo purposes — not sourced from CoreLogic):
-- Estimated value: AUD ${property_data.get('estimated_value_aud', 'N/A'):,} [SIMULATED]
+PROPERTY DATA (Source: {property_data.get('source', 'Simulated')}):
+- Estimated value: AUD ${property_data.get('estimated_value_aud', 'N/A'):,}
 - Built: {property_data.get('year_built')} | Construction: {property_data.get('construction_type')}
 - Roof: {property_data.get('roof_type')} | Stories: {property_data.get('stories')}
 - Land: {property_data.get('land_area_sqm')} sqm | Floor: {property_data.get('floor_area_sqm')} sqm

@@ -18,8 +18,8 @@ Results include a numeric risk score (0–100), risk band, interactive hazard ma
 - **Backend:** Python 3.12, FastAPI, Anthropic SDK (`claude-sonnet-4-6`)
 - **Frontend:** React 19 + Vite + Tailwind CSS
 - **Maps:** Folium with toggleable hazard overlays
-- **Live APIs:** Bureau of Meteorology, Geoscience Australia, Nominatim geocoding
-- **Simulated:** CoreLogic, Sentinel-2 NDVI, IRS claims, council flood/bushfire overlays
+- **Live APIs:** Bureau of Meteorology, Geoscience Australia, Nominatim geocoding, Tavily web search (property data)
+- **Simulated:** CoreLogic valuation, Sentinel-2 NDVI, IRS claims (fallback when live data unavailable)
 
 ---
 
@@ -29,6 +29,7 @@ Results include a numeric risk score (0–100), risk band, interactive hazard ma
 - Python 3.10+
 - Node.js 18+
 - An Anthropic API key
+- A Tavily API key (free tier — [tavily.com](https://tavily.com))
 
 ---
 
@@ -45,10 +46,12 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Add your API key
+### 3. Add your API keys
 ```bash
 cp .env.example .env
-# Open .env and add: ANTHROPIC_API_KEY=your-key-here
+# Open .env and add:
+# ANTHROPIC_API_KEY=your-key-here
+# TAVILY_API_KEY=your-key-here
 ```
 
 ### 4. Install frontend dependencies
@@ -90,7 +93,8 @@ prism_hazard_risk/
 ├── data_sources/
 │   ├── bom_api.py          # Bureau of Meteorology (live)
 │   ├── geoscience_api.py   # Geoscience Australia (live)
-│   └── mock_data.py        # Simulated: CoreLogic, IRS, satellite, overlays
+│   ├── tavily_property.py  # Tavily web search (live — land size, overlays, property type)
+│   └── mock_data.py        # Simulated fallback: CoreLogic, IRS, satellite
 ├── utils/
 │   ├── map_utils.py        # Geocoding + Folium map builder
 │   └── risk_scoring.py     # Deterministic peril scoring functions
