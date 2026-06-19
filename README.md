@@ -1,14 +1,3 @@
----
-title: PRISM Hazard Risk
-emoji: 🏠
-colorFrom: blue
-colorTo: indigo
-sdk: gradio
-sdk_version: 5.22.0
-app_file: app.py
-pinned: false
----
-
 # PRISM — Property Risk Intelligence & Synthesis Manager
 
 A multi-agent AI application that assesses natural hazard risk for Australian properties. Designed to help insurance underwriters evaluate luxury coastal and bushland properties — reducing assessment time from 5–10 days to hours.
@@ -18,54 +7,80 @@ A multi-agent AI application that assesses natural hazard risk for Australian pr
 Enter any Australian property address and PRISM runs four AI agents in sequence:
 
 1. **Data Harvesting** — pulls real-time data from Bureau of Meteorology, Geoscience Australia, and Nominatim geocoding
-2. **Risk Analysis** — scores the property across flood, bushfire, storm, and coastal erosion hazards
-3. **Validation & Compliance** — cross-checks scores against regulatory overlays and flags anomalies
-4. **Communication** — generates a structured underwriting report with risk band and recommendations
+2. **Risk Analysis** — scores the property across flood, bushfire, storm, coastal erosion and landslip hazards
+3. **Validation & Compliance** — cross-checks scores against APRA CPS 220 requirements and flags anomalies
+4. **Communication** — generates a structured underwriting report with risk band and premium loading recommendation
 
-Results include a numeric risk score (0–100), risk band (LOW / MODERATE / HIGH / VERY HIGH), an interactive Folium map, and a full written report.
+Results include a numeric risk score (0–100), risk band, interactive hazard map with layer toggles, and a full written underwriter report.
 
 ## Stack
 
-- Python 3.12
-- [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-python) (`claude-sonnet-4-6`)
-- [Gradio](https://gradio.app/) — UI
-- [Folium](https://python-visualization.github.io/folium/) — interactive maps
-- Real APIs: Bureau of Meteorology, Geoscience Australia, Nominatim
-- Mocked: CoreLogic, Sentinel-2 NDVI, ISI claims, council overlays
+- **Backend:** Python 3.12, FastAPI, Anthropic SDK (`claude-sonnet-4-6`)
+- **Frontend:** React 19 + Vite + Tailwind CSS
+- **Maps:** Folium with toggleable hazard overlays
+- **Live APIs:** Bureau of Meteorology, Geoscience Australia, Nominatim geocoding
+- **Simulated:** CoreLogic, Sentinel-2 NDVI, IRS claims, council flood/bushfire overlays
+
+---
 
 ## Setup
 
-**1. Clone the repo**
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- An Anthropic API key
+
+---
+
+### 1. Clone the repo
 ```bash
 git clone https://github.com/jmacasad/prism_hazard_risk.git
 cd prism_hazard_risk
 ```
 
-**2. Create a virtual environment and install dependencies**
+### 2. Set up the Python backend
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**3. Add your Anthropic API key**
+### 3. Add your API key
 ```bash
 cp .env.example .env
-# Edit .env and paste your ANTHROPIC_API_KEY
+# Open .env and add: ANTHROPIC_API_KEY=your-key-here
 ```
 
-**4. Run the app**
+### 4. Install frontend dependencies
 ```bash
-python app.py
+cd frontend
+npm install
+cd ..
 ```
 
-Open [http://localhost:7860](http://localhost:7860) in your browser.
+### 5. Run the app (two terminals)
+
+**Terminal 1 — API backend:**
+```bash
+source .venv/bin/activate
+uvicorn api:app --reload --port 8000
+```
+
+**Terminal 2 — React frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+Open **http://localhost:5173** in your browser.
+
+---
 
 ## Project structure
 
 ```
 prism_hazard_risk/
-├── app.py                  # Gradio UI entry point
+├── api.py                  # FastAPI backend with SSE streaming
 ├── agents/
 │   ├── orchestrator.py     # Runs the 4-agent pipeline
 │   ├── data_harvesting.py
@@ -73,13 +88,15 @@ prism_hazard_risk/
 │   ├── validation.py
 │   └── communication.py
 ├── data_sources/
-│   ├── bom_api.py          # Bureau of Meteorology
-│   ├── geoscience_api.py   # Geoscience Australia
-│   └── mock_data.py        # Mocked data sources
+│   ├── bom_api.py          # Bureau of Meteorology (live)
+│   ├── geoscience_api.py   # Geoscience Australia (live)
+│   └── mock_data.py        # Simulated: CoreLogic, IRS, satellite, overlays
 ├── utils/
 │   ├── map_utils.py        # Geocoding + Folium map builder
-│   └── risk_scoring.py
+│   └── risk_scoring.py     # Deterministic peril scoring functions
+├── frontend/               # React + Vite + Tailwind UI
 ├── requirements.txt
+├── DEMO_BRIEFING.md        # Demo guide: data sources, methodology, production roadmap
 └── .env.example
 ```
 
