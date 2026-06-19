@@ -37,56 +37,50 @@ def build_risk_map(
         tooltip=f"PRISM Score: {overall}/100 — {risk_band}",
     ).add_to(m)
 
-    # Flood zone circle
+    # Flood zone layer
+    flood_group = folium.FeatureGroup(name="Flood Zone", show=True)
     if flood_data.get("in_flood_planning_zone"):
         folium.Circle(
-            [lat, lon],
-            radius=400,
-            color="#1a6fba",
-            fill=True,
-            fill_color="#4da6ff",
-            fill_opacity=0.2,
+            [lat, lon], radius=400,
+            color="#1a6fba", fill=True, fill_color="#4da6ff", fill_opacity=0.2,
             tooltip=f"Flood Zone: {flood_data.get('flood_category', 'N/A')}",
-        ).add_to(m)
+        ).add_to(flood_group)
+    flood_group.add_to(m)
 
-    # Bushfire prone land circle
+    # Bushfire prone land layer
+    bushfire_group = folium.FeatureGroup(name="Bushfire Prone Land", show=True)
     if bushfire_data.get("bushfire_prone_land"):
         folium.Circle(
-            [lat, lon],
-            radius=700,
-            color="#cc4400",
-            fill=True,
-            fill_color="#ff6633",
-            fill_opacity=0.12,
+            [lat, lon], radius=700,
+            color="#cc4400", fill=True, fill_color="#ff6633", fill_opacity=0.12,
             tooltip=f"Bushfire Prone: {bushfire_data.get('bpl_category', 'N/A')}",
-        ).add_to(m)
+        ).add_to(bushfire_group)
+    bushfire_group.add_to(m)
 
-    # Coastal erosion buffer — only shown when erosion score is meaningful
+    # Coastal erosion layer
     erosion_score = scores.get("perils", {}).get("erosion", {}).get("score", 0)
+    erosion_group = folium.FeatureGroup(name="Coastal Erosion Buffer", show=True)
     if erosion_score >= 20:
         folium.Circle(
-            [lat, lon],
-            radius=250,
-            color="#8B6914",
-            fill=True,
-            fill_color="#D4A843",
-            fill_opacity=0.15,
+            [lat, lon], radius=250,
+            color="#8B6914", fill=True, fill_color="#D4A843", fill_opacity=0.15,
             tooltip=f"Coastal Erosion Buffer Zone (score: {erosion_score}/100)",
-        ).add_to(m)
+        ).add_to(erosion_group)
+    erosion_group.add_to(m)
 
-    # Legend
-    legend_html = f"""
-    <div style="position:fixed;bottom:30px;left:30px;z-index:1000;
-                background:white;padding:12px;border-radius:8px;
-                box-shadow:0 2px 8px rgba(0,0,0,0.3);font-family:sans-serif;font-size:12px">
-        <b>PRISM Hazard Overlays</b><br>
-        <span style="color:#4da6ff">&#9646;</span> Flood Zone<br>
-        <span style="color:#ff6633">&#9646;</span> Bushfire Prone Land<br>
-        <span style="color:#D4A843">&#9646;</span> Coastal Erosion Buffer<br>
-        <span style="color:{color}">&#9679;</span> Property ({overall}/100)
-    </div>
-    """
-    m.get_root().html.add_child(folium.Element(legend_html))
+    # Storm risk radius layer
+    storm_score = scores.get("perils", {}).get("storm", {}).get("score", 0)
+    storm_group = folium.FeatureGroup(name="Storm Risk Radius", show=False)
+    if storm_score >= 20:
+        folium.Circle(
+            [lat, lon], radius=1000,
+            color="#5c35cc", fill=True, fill_color="#9b7fe8", fill_opacity=0.08,
+            tooltip=f"Storm Risk Radius (score: {storm_score}/100)",
+        ).add_to(storm_group)
+    storm_group.add_to(m)
+
+    # Layer toggle control
+    folium.LayerControl(collapsed=False, position="topright").add_to(m)
 
     return m._repr_html_()
 

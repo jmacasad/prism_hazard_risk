@@ -1,0 +1,195 @@
+# PRISM — Demo Briefing Document
+**Property Risk Intelligence & Synthesis Manager**
+*Prepared for underwriter demo use*
+
+---
+
+## 1. Where Does PRISM Get Its Data?
+
+### Current Prototype (Live vs Simulated)
+
+| Data Source | Status | What It Provides |
+|---|---|---|
+| **Bureau of Meteorology (BoM)** | LIVE | Real-time weather: temperature, wind speed/direction, humidity, fire danger rating |
+| **Geoscience Australia** | LIVE | Seismic hazard PGA, earthquake zone classification via ArcGIS REST API |
+| **OpenStreetMap / Nominatim** | LIVE | Geocoding — converts property address to lat/lon coordinates |
+| **CoreLogic / PSMA** | SIMULATED | Property value, construction type, roof type, year built, floor area, land area |
+| **Sentinel-2 NDVI** | SIMULATED | Vegetation density, defensible space assessment, tree canopy cover |
+| **Insurance Reference Services (IRS)** | SIMULATED | Historical claims within 5km radius over 10 years (bushfire, flood, storm) |
+| **Council Flood Planning Overlay** | SIMULATED | Flood zone category, 1-in-100-year flood level, stormwater infrastructure rating |
+| **RFS / CFA Bushfire Prone Land** | SIMULATED | Bushfire Prone Land designation, BAL rating factors, flame zone status |
+
+> Simulated sources use a deterministic seed based on the property address — meaning the same address always returns the same data, making demo runs consistent and repeatable.
+
+---
+
+### What You Need for Production
+
+To move PRISM to production, the following real integrations are required:
+
+**Property Data**
+- CoreLogic API (commercial licence) — property attributes, valuation, ownership history
+- PSMA Australia — address and cadastral boundary data
+
+**Satellite & Vegetation**
+- Sentinel-2 via Copernicus Open Access Hub or AWS (free) — NDVI, canopy analysis
+- Planet Labs or NearMap (commercial) — higher resolution, more frequent refresh
+
+**Flood**
+- Each state/council's flood planning maps via their spatial portals (NSW Spatial Services, DELWP, QSpatial)
+- ELVIS (Geoscience Australia) — LIDAR-based Digital Elevation Models for precise floor/flood benchmark comparison
+
+**Bushfire**
+- NSW RFS Bushfire Prone Land layer — available via NSW Spatial Services API
+- AFAC historical fire perimeters — national dataset of past fire boundaries
+
+**Claims History**
+- Insurance Reference Services (IRS) or Insurance Council of Australia (ICA) — real industry claims database (requires membership agreement)
+
+**Coastal Erosion**
+- NSW Coastal Hazard Maps — State Environmental Planning Policy data
+- Geoscience Australia Coastal Erosion Database
+
+**Weather (enhanced)**
+- BoM Fire Weather API (currently used in prototype — no change needed)
+- CSIRO climate projections for 10/25/50 year risk horizon modelling
+
+---
+
+## 2. Risk Analysis — Model or Scientific Method?
+
+PRISM uses a **hybrid approach**: deterministic actuarial scoring functions driven by an AI orchestration agent.
+
+### The Scoring Engine (Deterministic)
+
+Each peril is scored by a dedicated Python function in `utils/risk_scoring.py`. These are **not** AI-generated scores — they follow explicit, auditable rules:
+
+**Bushfire Score (weight: 30%)**
+- +35 pts if property is on Bushfire Prone Land (BPL designation)
+- +20 pts if in Flame Zone (highest BAL rating)
+- +15 pts if defensible space < 20m (AS3959 standard)
+- +8–15 pts based on NDVI vegetation density
+- +0–15 pts based on current BoM fire danger rating (LOW to CATASTROPHIC)
+
+**Flood Score (weight: 28%)**
+- +12–40 pts based on council flood overlay category (Low/Medium/High)
+- +10–20 pts if floor level is at or below 1-in-100-year flood benchmark
+- +12 pts if property is on an overland flow path
+- +8 pts if stormwater infrastructure is rated undersized
+- +8–15 pts based on historical flood claims within 5km
+
+**Storm Score (weight: 22%)**
+- Base 5 pts coastal exposure
+- +10 pts for tile roofs (higher wind uplift than Colorbond)
+- +10–20 pts based on historical storm claims within 5km
+- +10 pts if built pre-1990 (pre-modern wind resistance standards)
+
+**Erosion Score (weight: 12%)**
+- +25–45 pts based on coastal erosion classification (Geoscience Australia)
+- +15 pts for coastal sandy clay soil (shrink-swell indicator)
+
+**Landslip Score (weight: 8%)**
+- +15 pts for clay-bearing soil
+- +10 pts if seismic PGA > 0.1 (Geoscience Australia data)
+
+### Overall Score Aggregation
+
+```
+Overall = (Bushfire × 0.30) + (Flood × 0.28) + (Storm × 0.22) + (Erosion × 0.12) + (Landslip × 0.08)
+```
+
+| Score Range | Risk Band | Premium Loading |
+|---|---|---|
+| 0–34 | LOW-MODERATE | 0–15% |
+| 35–54 | MODERATE | 15–35% |
+| 55–74 | HIGH | 35–65% |
+| 75–100 | VERY HIGH | 65–90% |
+
+### Role of the AI Agent
+
+The AI agent (Claude Sonnet) acts as the **orchestrator** — it decides the order of tool calls, passes the right data to each scoring function, interprets the outputs, and flags reasoning. The actual score arithmetic is always deterministic and auditable, not generated by the AI. This is intentional: it keeps the scoring explainable and defensible to regulators.
+
+---
+
+## 3. Validation — What Is Checked and On What Basis?
+
+The Validation & Compliance Agent reviews the completed risk assessment against three criteria:
+
+### 1. Internal Consistency Check
+- Are peril scores consistent with each other? (e.g. a coastal property with zero erosion risk would be flagged)
+- Are any scores anomalous given the property data? (e.g. very high bushfire score for a CBD property)
+- Does the premium loading align with the overall score band?
+
+### 2. APRA CPS 220 Compliance
+APRA Prudential Standard CPS 220 (Risk Management) requires insurers to demonstrate:
+- Systematic identification of material risks
+- Evidence-based assessment methodology
+- Documented audit trail for each decision
+- Human oversight for high-risk decisions
+
+PRISM generates a structured compliance note and audit trail for every assessment confirming these requirements are met.
+
+### 3. Human Review Trigger
+If `overall_score > 70` (HIGH or VERY HIGH risk), PRISM automatically flags the assessment for mandatory human specialist review before binding — consistent with APRA CPS 220 requirements and standard underwriting practice.
+
+> **Important for demo:** Frame validation as the governance layer that makes PRISM production-ready, not just a prototype. The audit trail it generates is what a regulator or internal risk committee would want to see.
+
+---
+
+## 4. Risk Report — Where Does the Data Come From?
+
+The Communication Agent synthesises every data source collected during the assessment into a 7-section underwriter report:
+
+| Report Section | Data Sources Used |
+|---|---|
+| Executive Summary | Overall score, risk band, premium loading, confidence level |
+| Property Profile | CoreLogic (simulated): value, year built, construction type, roof, area, floor area, council zone |
+| Peril Assessment | All 5 peril scores + factors + BoM weather + satellite NDVI + geological data |
+| Underwriting Action | Risk band + validation compliance notes + human review flag |
+| Policy Conditions & Exclusions | Peril factors + bushfire/flood overlay status |
+| Mitigation Recommendations | Defensible space, construction upgrades, flood resilience actions |
+| Regulatory Notes | APRA CPS 220 audit trail + data source disclosure |
+
+The report is written by Claude Sonnet acting as a senior insurance analyst, instructed to use Australian insurance terminology and not soften risk findings. The premium loading stated in the report is locked to the value calculated by the scoring engine — the agent cannot override it.
+
+---
+
+## 5. Risk Map — Can We Make It More Accurate?
+
+### Current Limitations
+
+The current map uses **radius-based circle approximations** centred on the property coordinates:
+- Flood zone: 400m radius circle (if council overlay flags the property)
+- Bushfire: 700m radius circle (if BPL designation applies)
+- Coastal erosion: 250m radius circle (if erosion score ≥ 20)
+- Storm risk: 1,000m radius circle (if storm score ≥ 20)
+
+These are indicative, not geometrically accurate. They show *that* a risk exists, not *exactly where* boundaries fall.
+
+### What Accurate Mapping Requires
+
+**Yes — providing property coordinates significantly improves accuracy.** With precise coordinates we can:
+
+| Overlay | Data Source Needed | What It Shows |
+|---|---|---|
+| Flood extent | Council flood planning polygons (NSW Spatial Services, QSpatial, DELWP) | Exact flood planning area boundaries, not circles |
+| Historical flood events | Bureau of Meteorology flood event database | Actual inundation extents from past events |
+| Bushfire prone land | NSW RFS BPL layer / AFAC national dataset | True BPL polygon boundaries |
+| Historical fire perimeters | AFAC / NSW NPWS historical fire mapping | Boundaries of every recorded fire going back decades |
+| Coastal erosion setbacks | NSW Coastal Hazard Maps (SEPP) | 50/100-year erosion setback lines |
+| Storm surge zones | CSIRO / Geoscience Australia | Coastal inundation scenarios by severity |
+| Property cadastral boundary | NSW Spatial Services / PSMA | Exact property lot boundary overlaid on all hazards |
+
+### Recommended Approach for Production Map
+
+1. **Use real polygon data** from state spatial portals (all free via WFS/WMS APIs) instead of radius circles
+2. **Overlay historical event data** — past fire perimeters and flood extents are the most compelling for underwriters as they show what has *actually happened* near the property
+3. **Add a timeline slider** — let the underwriter see how hazard zones have changed over time (e.g. expanding coastal erosion setbacks)
+4. **Show the property lot boundary** — using cadastral data so the underwriter sees exactly what portion of the block is within each hazard zone
+
+> **For the demo:** The current map is a proof-of-concept. The data sources listed above are all publicly available. With 2–3 weeks of integration work, the map could show exact polygon overlays with historical data — which would be a significant differentiator from existing underwriting tools.
+
+---
+
+*PRISM prototype — not for production underwriting decisions.*
+*Assessment methodology subject to actuarial review before commercial deployment.*

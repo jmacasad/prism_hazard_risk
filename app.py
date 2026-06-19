@@ -3,12 +3,56 @@ Gradio demo application.
 """
 
 import os
+import base64
 import gradio as gr
 from dotenv import load_dotenv
 from agents.orchestrator import run_assessment
 from utils.map_utils import build_risk_map
 
 load_dotenv()
+
+
+def _load_logo_src():
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo-color-white.svg")
+    try:
+        with open(logo_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f"data:image/svg+xml;base64,{b64}"
+    except Exception:
+        return ""
+
+
+def _make_honeycomb_svg():
+    r, hw, hh, dx, dy = 26, 23, 13, 45, 39
+    row0_x = list(range(0, 480, dx))
+    row1_x = list(range(23, 503, dx))
+    rows = [(row0_x, 26), (row1_x, 65), (row0_x, 104), (row1_x, 143), (row0_x, 182)]
+    polys = "".join(
+        f'<polygon points="{cx},{cy-r} {cx+hw},{cy-hh} {cx+hw},{cy+hh} {cx},{cy+r} {cx-hw},{cy+hh} {cx-hw},{cy-hh}"/>'
+        for xs, cy in rows for cx in xs
+    )
+    return (
+        '<svg viewBox="0 0 480 210" preserveAspectRatio="xMaxYMax meet"'
+        ' xmlns="http://www.w3.org/2000/svg"'
+        ' style="position:absolute;right:0;bottom:0;width:380px;height:120px;pointer-events:none;'
+        'transform:perspective(380px) rotateX(45deg);transform-origin:bottom right;">'
+        '<defs>'
+        '<radialGradient id="hc-grad" cx="1" cy="1" r="1.3" gradientUnits="objectBoundingBox">'
+        '<stop offset="0%" stop-color="white"/>'
+        '<stop offset="55%" stop-color="white" stop-opacity="0.5"/>'
+        '<stop offset="100%" stop-color="black"/>'
+        '</radialGradient>'
+        '<mask id="hc-mask">'
+        '<rect width="480" height="210" fill="url(#hc-grad)"/>'
+        '</mask>'
+        '</defs>'
+        f'<g mask="url(#hc-mask)" fill="none" stroke="rgba(190,230,210,0.55)" stroke-width="1.5">{polys}</g>'
+        '</svg>'
+    )
+
+
+LOGO_SRC = _load_logo_src()
+HONEYCOMB_SVG = _make_honeycomb_svg()
 
 DEMO_ADDRESSES = [
     "42 Whale Beach Road, Whale Beach NSW 2107",
@@ -27,16 +71,59 @@ AGENTS = [
 CSS = """
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .prism-header {
-    background: linear-gradient(135deg, #0d2137 0%, #1a4a72 100%);
-    padding: 20px 28px; border-radius: 10px; margin-bottom: 12px;
+    background: #304E4D;
+    padding: 24px 52px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
 }
-.prism-header h1 { color: #fff; margin: 0; font-size: 26px; letter-spacing: 1px; }
-.prism-header p  { color: #a8c4e0; margin: 3px 0 0; font-size: 13px; }
+.prism-header h1 {
+    color: #fff;
+    margin: 0;
+    font-size: 72px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    line-height: 1;
+}
+.prism-header p { color: #D2B589; margin: 10px 0 0; font-size: 13px; letter-spacing: 0.3px; }
 .score-display { font-size: 72px; font-weight: 900; text-align: center; line-height: 1; }
 .score-low       { color: #388e3c; }
 .score-moderate  { color: #f9a825; }
 .score-high      { color: #f57c00; }
 .score-very-high { color: #d32f2f; }
+#run-btn {
+    background: #D2B589 !important;
+    color: #304E4D !important;
+    border: none !important;
+    border-radius: 999px !important;
+    text-transform: uppercase !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    padding: 10px 32px !important;
+    width: fit-content !important;
+    min-width: 140px !important;
+}
+#search-row {
+    align-items: flex-end !important;
+}
+#run-btn {
+    margin-left: auto !important;
+}
+#search-row .block {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+}
+#search-row > div {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
 """
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -252,22 +339,25 @@ def run_prism(address: str):
 def build_ui():
     with gr.Blocks(css=CSS, title="PRISM — Property Risk Intelligence") as demo:
 
-        gr.HTML("""
+        gr.HTML(f"""
         <div class="prism-header">
+          <div style="position:relative;z-index:2;flex:1">
             <h1>PRISM</h1>
             <p>Property Risk Intelligence &amp; Synthesis Manager &nbsp;·&nbsp;
                Natural Hazard Assessment for Luxury Coastal &amp; Bushland Properties</p>
+          </div>
+          {HONEYCOMB_SVG}
         </div>
         """)
 
-        with gr.Row():
+        with gr.Row(elem_id="search-row"):
             address_input = gr.Textbox(
                 label="Property Address",
                 placeholder="e.g. 42 Whale Beach Road, Whale Beach NSW 2107",
                 lines=1,
+                scale=9,
             )
-
-        run_btn = gr.Button("🔍  Run PRISM Assessment", variant="primary", size="lg")
+            run_btn = gr.Button("SEARCH", variant="primary", size="sm", elem_id="run-btn", scale=1)
 
         with gr.Row():
             for addr in DEMO_ADDRESSES:
