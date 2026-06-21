@@ -150,7 +150,7 @@ The Communication Agent produces a **5-section underwriter report**. Critically,
 
 ## 5. Risk Map — How It Works
 
-The map (Folium/Leaflet, served as HTML) shows four toggleable overlay layers on a Geoscience Australia basemap.
+The map (Folium/Leaflet, OpenStreetMap tiles) shows four toggleable overlay layers at zoom level 15 — showing building footprints, roads, green space, and water bodies for spatial context.
 
 | Layer | Colour | Renders when | Radius |
 |---|---|---|---|
@@ -159,7 +159,18 @@ The map (Folium/Leaflet, served as HTML) shows four toggleable overlay layers on
 | Coastal Erosion Buffer | Amber | Erosion score ≥ 20/100 | 250m |
 | Storm Risk Radius | Purple | Storm score ≥ 20/100 | 1,000m |
 
-**When no overlays are triggered** (all four conditions false — e.g. an inner-city Melbourne suburb), the map displays a notice: *"No active hazard overlays — all perils within normal thresholds for this location."* This confirms the blank map is a valid result, not a rendering failure.
+### Layer Toggle Controls
+
+The four layer checkboxes sit **above** the map in a React panel — not inside the map itself. This keeps the map uncluttered and makes the controls always visible. Layers with no geometry are greyed out with a "no overlay" label so the underwriter can see at a glance which perils are and aren't present without having to click anything.
+
+Toggling a checkbox sends a `postMessage` to the Leaflet iframe, which shows or hides the corresponding `FeatureGroup` layer in real time.
+
+### Overlay Observation Notes
+
+Below the map, a notes section provides a plain-English interpretation for each active overlay:
+
+- **When overlays are active:** one coloured card per active layer, showing the radius, overlay name, a one-sentence description of the hazard significance, and the peril score. Example for Mosman (coastal erosion active): *"250m | Coastal Erosion Buffer — Active coastal erosion zone identified within 250m of the property. Geotechnical specialist assessment may be required. Erosion score: 45/100."*
+- **When no overlays fire** (e.g. inner-city Melbourne): a green *"No active hazard overlays — all perils within normal thresholds for this location"* card confirms the blank map is a valid result, not a rendering failure.
 
 ### Current Limitations
 
