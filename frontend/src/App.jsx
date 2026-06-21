@@ -15,6 +15,58 @@ const LAYER_DEFS = [
 
 const DEFAULT_VIS = { flood: true, bushfire: true, erosion: true, storm: false }
 
+const LAYER_META = {
+  flood:    { radius: '400m',  desc: (s) => `Council flood planning zone confirmed. Elevated pluvial and fluvial inundation exposure within the planning area. Flood score: ${s}/100.` },
+  bushfire: { radius: '700m',  desc: (s) => `Property mapped as Bushfire Prone Land. Structural BAL assessment recommended prior to binding. Bushfire score: ${s}/100.` },
+  erosion:  { radius: '250m',  desc: (s) => `Active coastal erosion zone identified within 250m of the property. Geotechnical specialist assessment may be required. Erosion score: ${s}/100.` },
+  storm:    { radius: '1,000m',desc: (s) => `Elevated storm wind exposure. Construction vintage and roof type are material risk factors for this zone. Storm score: ${s}/100.` },
+}
+
+function OverlayNotes({ mapLayers, scores }) {
+  const active = LAYER_DEFS.filter(l => mapLayers[l.key])
+  if (!active.length) {
+    return (
+      <div style={{
+        marginTop: '10px', padding: '10px 16px',
+        background: '#f0fdf4', border: '1px solid #bbf7d0',
+        borderRadius: '8px', fontSize: '13px', color: '#166534',
+        display: 'flex', alignItems: 'center', gap: '8px',
+      }}>
+        <span style={{ fontSize: '15px' }}>✓</span>
+        No active hazard overlays — all perils within normal thresholds for this location.
+      </div>
+    )
+  }
+  return (
+    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {active.map(({ key, label, color }) => {
+        const perilScore = scores?.perils?.[key]?.score ?? '—'
+        const meta = LAYER_META[key]
+        return (
+          <div key={key} style={{
+            padding: '9px 14px',
+            background: '#fff',
+            border: `1px solid ${color}40`,
+            borderLeft: `3px solid ${color}`,
+            borderRadius: '8px',
+            display: 'flex', alignItems: 'flex-start', gap: '10px',
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color, minWidth: '36px', paddingTop: '1px', letterSpacing: '0.3px' }}>
+              {meta.radius}
+            </span>
+            <div>
+              <span style={{ fontSize: '12px', fontWeight: '700', color }}>{label}</span>
+              <span style={{ fontSize: '12px', color: '#4b5563', marginLeft: '6px' }}>
+                — {meta.desc(perilScore)}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function App() {
   const [address, setAddress] = useState('')
   const [loading, setLoading] = useState(false)
@@ -98,7 +150,6 @@ export default function App() {
     }
   }
 
-  const noOverlays = mapHtml && !Object.values(mapLayers).some(Boolean)
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f2f5', padding: '32px 24px' }}>
@@ -200,18 +251,8 @@ export default function App() {
                   style={{ height: '460px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e5e7eb' }}
                 />
 
-                {/* No-overlay notice — outside the map */}
-                {noOverlays && (
-                  <div style={{
-                    marginTop: '10px', padding: '9px 16px',
-                    background: '#f0fdf4', border: '1px solid #bbf7d0',
-                    borderRadius: '8px', fontSize: '13px', color: '#166534',
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                  }}>
-                    <span style={{ fontSize: '16px' }}>✓</span>
-                    No active hazard overlays — all perils within normal thresholds for this location.
-                  </div>
-                )}
+                {/* Overlay observation notes */}
+                <OverlayNotes mapLayers={mapLayers} scores={scores} />
               </div>
             ) : (
               <p style={{ color: '#9ca3af', textAlign: 'center', paddingTop: '80px', fontSize: '14px' }}>Run an assessment to generate the interactive hazard map.</p>
