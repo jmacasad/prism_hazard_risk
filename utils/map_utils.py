@@ -17,7 +17,16 @@ def build_risk_map(
     risk_band = scores.get("risk_band", "MODERATE")
 
     color = _score_to_color(overall)
-    m = folium.Map(location=[lat, lon], zoom_start=14, tiles="CartoDB positron")
+    GA_BASEMAP = (
+        "https://services.ga.gov.au/gis/rest/services/NationalBaseMap/MapServer"
+        "/WMTS/tile/1.0.0/NationalBaseMap/default/GoogleMapsCompatible/{z}/{y}/{x}.png"
+    )
+    GA_ATTR = (
+        '© <a href="https://www.ga.gov.au/">Geoscience Australia</a> 2020 '
+        '| <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> '
+        '| Data: OpenStreetMap contributors'
+    )
+    m = folium.Map(location=[lat, lon], zoom_start=14, tiles=GA_BASEMAP, attr=GA_ATTR)
 
     # Property marker
     popup_html = f"""
@@ -27,7 +36,7 @@ def build_risk_map(
         <span style="font-size:22px;font-weight:bold;color:{color}">{overall}</span>
         <span style="font-size:11px;color:#666"> / 100</span><br>
         <b style="color:{color}">{risk_band} RISK</b><br>
-        <span style="font-size:11px">Premium loading: {scores.get('premium_loading','N/A')}</span>
+        <span style="font-size:11px">Confidence: {scores.get('confidence','N/A')}</span>
     </div>
     """
     folium.Marker(
@@ -81,6 +90,25 @@ def build_risk_map(
 
     # Layer toggle control
     folium.LayerControl(collapsed=False, position="topright").add_to(m)
+
+    # If no hazard overlays were drawn, add a notice so a blank map isn't mistaken for a render error
+    no_overlays = (
+        not flood_data.get("in_flood_planning_zone")
+        and not bushfire_data.get("bushfire_prone_land")
+        and erosion_score < 20
+        and storm_score < 20
+    )
+    if no_overlays:
+        notice = """
+        <div style="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+                    background:rgba(255,255,255,0.93);border:1px solid #d0d0d0;
+                    border-radius:6px;padding:7px 16px;font-family:sans-serif;
+                    font-size:12px;color:#555;z-index:9999;text-align:center;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.12);">
+            &#10003; No active hazard overlays — all perils within normal thresholds for this location
+        </div>
+        """
+        m.get_root().html.add_child(folium.Element(notice))
 
     return m._repr_html_()
 

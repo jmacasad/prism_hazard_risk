@@ -7,6 +7,97 @@ import re
 # Per-assessment cache — keyed by address
 _cache: dict[str, dict] = {}
 
+# State-specific planning portals for flood and bushfire overlays
+_STATE_PLANNING = {
+    "NSW": {
+        "flood": (
+            "NSW Planning Portal (flood.nsw.gov.au) or the relevant council's flood planning certificate. "
+            "Search '[council name] flood planning certificate' or '[address] flood overlay NSW planning portal'."
+        ),
+        "bushfire": (
+            "NSW Rural Fire Service Bushfire Prone Land Map (rfs.nsw.gov.au/check-your-risk). "
+            "Search '[address] bushfire prone land NSW RFS'."
+        ),
+    },
+    "VIC": {
+        "flood": (
+            "VicPlan (planning.vic.gov.au/tools-and-resources/vicplan) or the relevant council's planning scheme "
+            "flood overlay (LSIO/SBO/FO). Search '[address] flood overlay Victorian planning scheme' or "
+            "'[council name] land subject to inundation overlay'."
+        ),
+        "bushfire": (
+            "Bushfire Management Overlay (BMO) in the relevant Victorian planning scheme, administered by DEECA. "
+            "Search '[address] bushfire management overlay VIC planning scheme' or check VicPlan."
+        ),
+    },
+    "QLD": {
+        "flood": (
+            "Queensland Development Assessment System or the relevant council's flood mapping portal. "
+            "Search '[address] flood overlay QLD development assessment' or '[council] flood awareness map'."
+        ),
+        "bushfire": (
+            "QFES Bushfire Hazard Assessment or the relevant council's planning scheme. "
+            "Search '[address] bushfire hazard QLD planning scheme'."
+        ),
+    },
+    "SA": {
+        "flood": (
+            "PlanSA planning portal (plan.sa.gov.au) — Flood Hazard Overlay. "
+            "Search '[address] flood hazard overlay PlanSA'."
+        ),
+        "bushfire": (
+            "PlanSA Bushfire Risk Overlay or SA CFS. "
+            "Search '[address] bushfire risk overlay PlanSA'."
+        ),
+    },
+    "WA": {
+        "flood": (
+            "WA Planning Commission or the relevant local government planning scheme flood provisions. "
+            "Search '[address] flood risk WA local planning scheme'."
+        ),
+        "bushfire": (
+            "DFES Bushfire Prone Area mapping (dfes.wa.gov.au). "
+            "Search '[address] bushfire prone area WA DFES'."
+        ),
+    },
+    "TAS": {
+        "flood": (
+            "The relevant council's planning scheme or Land Tasmania flood mapping. "
+            "Search '[address] flood zone Tasmania planning scheme'."
+        ),
+        "bushfire": (
+            "Tasmania Fire Service or the relevant council's planning scheme bushfire provisions. "
+            "Search '[address] bushfire prone area Tasmania'."
+        ),
+    },
+    "ACT": {
+        "flood": (
+            "ACTmapi (actmapi.act.gov.au) — Flood Area Overlay. "
+            "Search '[address] flood overlay ACT planning'."
+        ),
+        "bushfire": (
+            "ACT Emergency Services Agency bushfire risk mapping. "
+            "Search '[address] bushfire risk ACT planning directorate'."
+        ),
+    },
+    "NT": {
+        "flood": (
+            "NT Planning or the relevant local government flood provisions. "
+            "Search '[address] flood risk NT planning scheme'."
+        ),
+        "bushfire": (
+            "NT Fire and Rescue Service bushfire risk mapping. "
+            "Search '[address] bushfire risk NT'."
+        ),
+    },
+}
+
+
+def _extract_state(address: str) -> str | None:
+    """Extract Australian state/territory abbreviation from address string."""
+    match = re.search(r'\b(NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b', address.upper())
+    return match.group(1) if match else None
+
 
 def _gemini_search(address: str) -> dict:
     """Query Gemini with Google Search grounding. Returns structured property dict. Cached."""
@@ -25,6 +116,17 @@ def _gemini_search(address: str) -> dict:
 
         client = genai.Client(api_key=api_key)
 
+        state = _extract_state(address)
+        planning = _STATE_PLANNING.get(state, {})
+        flood_source = planning.get(
+            "flood",
+            "the relevant state or council planning portal flood overlay or planning certificate."
+        )
+        bushfire_source = planning.get(
+            "bushfire",
+            "the relevant state fire authority bushfire prone land mapping."
+        )
+
         prompt = f"""You are a property data extraction assistant for Australian insurance underwriting.
 
 Search for and extract property details for this exact address: {address}
@@ -34,8 +136,9 @@ Search specifically for:
 - Estimated value or appraisal (look for phrases like "estimated value", "appraised between", "property value", "median valuation", "price estimate")
 - Property configuration (bedrooms, bathrooms, parking)
 - Land and floor area
-- Council/LGA, flood overlay, bushfire overlay
 - Year of construction or build era — look for phrases like "built in", "built circa", "c.", "Federation-era", "Victorian-era", "Edwardian", "interwar", "post-war", "constructed in", "heritage-listed". Convert any era or approximate description to the best integer year (e.g. "Federation-era circa 1905" → 1905, "built c.1920" → 1920, "interwar" → 1935).
+- Flood overlay: search {flood_source}
+- Bushfire overlay: search {bushfire_source}
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
 {{
