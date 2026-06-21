@@ -51,11 +51,11 @@ async def assess(req: AssessRequest):
                 yield event({"type": "report", "markdown": payload})
 
             elif stage == "map_data" and payload:
-                map_html = build_risk_map(
+                map_html, map_layers = build_risk_map(
                     payload["address"], payload["lat"], payload["lon"],
                     payload["scores"], payload["flood_data"], payload["bushfire_data"],
                 )
-                yield event({"type": "map", "html": map_html})
+                yield event({"type": "map", "html": map_html, "layers": map_layers})
 
             elif stage == "error":
                 yield event({"type": "error", "message": log_line})

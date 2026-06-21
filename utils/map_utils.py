@@ -11,22 +11,17 @@ def build_risk_map(
     scores: dict,
     flood_data: dict,
     bushfire_data: dict,
-) -> str:
-    """Return HTML string of interactive Folium map."""
+) -> tuple[str, dict]:
+    """Return (html, layers_data) where layers_data flags which overlays have geometry."""
     overall = scores.get("overall_score", 50)
     risk_band = scores.get("risk_band", "MODERATE")
-
     color = _score_to_color(overall)
-    GA_BASEMAP = (
-        "https://services.ga.gov.au/gis/rest/services/NationalBaseMap/MapServer"
-        "/WMTS/tile/1.0.0/NationalBaseMap/default/GoogleMapsCompatible/{z}/{y}/{x}.png"
+
+    m = folium.Map(
+        location=[lat, lon],
+        zoom_start=15,
+        tiles="OpenStreetMap",
     )
-    GA_ATTR = (
-        '© <a href="https://www.ga.gov.au/">Geoscience Australia</a> 2020 '
-        '| <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> '
-        '| Data: OpenStreetMap contributors'
-    )
-    m = folium.Map(location=[lat, lon], zoom_start=14, tiles=GA_BASEMAP, attr=GA_ATTR)
 
     # Property marker
     popup_html = f"""
@@ -47,8 +42,9 @@ def build_risk_map(
     ).add_to(m)
 
     # Flood zone layer
+    flood_has_data = bool(flood_data.get("in_flood_planning_zone"))
     flood_group = folium.FeatureGroup(name="Flood Zone", show=True)
-    if flood_data.get("in_flood_planning_zone"):
+    if flood_has_data:
         folium.Circle(
             [lat, lon], radius=400,
             color="#1a6fba", fill=True, fill_color="#4da6ff", fill_opacity=0.2,
@@ -57,8 +53,9 @@ def build_risk_map(
     flood_group.add_to(m)
 
     # Bushfire prone land layer
+    bushfire_has_data = bool(bushfire_data.get("bushfire_prone_land"))
     bushfire_group = folium.FeatureGroup(name="Bushfire Prone Land", show=True)
-    if bushfire_data.get("bushfire_prone_land"):
+    if bushfire_has_data:
         folium.Circle(
             [lat, lon], radius=700,
             color="#cc4400", fill=True, fill_color="#ff6633", fill_opacity=0.12,
@@ -68,8 +65,9 @@ def build_risk_map(
 
     # Coastal erosion layer
     erosion_score = scores.get("perils", {}).get("erosion", {}).get("score", 0)
+    erosion_has_data = erosion_score >= 20
     erosion_group = folium.FeatureGroup(name="Coastal Erosion Buffer", show=True)
-    if erosion_score >= 20:
+    if erosion_has_data:
         folium.Circle(
             [lat, lon], radius=250,
             color="#8B6914", fill=True, fill_color="#D4A843", fill_opacity=0.15,
@@ -79,8 +77,9 @@ def build_risk_map(
 
     # Storm risk radius layer
     storm_score = scores.get("perils", {}).get("storm", {}).get("score", 0)
+    storm_has_data = storm_score >= 20
     storm_group = folium.FeatureGroup(name="Storm Risk Radius", show=False)
-    if storm_score >= 20:
+    if storm_has_data:
         folium.Circle(
             [lat, lon], radius=1000,
             color="#5c35cc", fill=True, fill_color="#9b7fe8", fill_opacity=0.08,
@@ -88,29 +87,45 @@ def build_risk_map(
         ).add_to(storm_group)
     storm_group.add_to(m)
 
-    # Layer toggle control
-    folium.LayerControl(collapsed=False, position="topright").add_to(m)
+    # PostMessage bridge — lets the React layer toggles control Leaflet layers
+    flood_var = flood_group.get_name()
+    bushfire_var = bushfire_group.get_name()
+    erosion_var = erosion_group.get_name()
+    storm_var = storm_group.get_name()
+    map_var = m.get_name()
 
-    # If no hazard overlays were drawn, add a notice so a blank map isn't mistaken for a render error
-    no_overlays = (
-        not flood_data.get("in_flood_planning_zone")
-        and not bushfire_data.get("bushfire_prone_land")
-        and erosion_score < 20
-        and storm_score < 20
-    )
-    if no_overlays:
-        notice = """
-        <div style="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
-                    background:rgba(255,255,255,0.93);border:1px solid #d0d0d0;
-                    border-radius:6px;padding:7px 16px;font-family:sans-serif;
-                    font-size:12px;color:#555;z-index:9999;text-align:center;
-                    box-shadow:0 1px 4px rgba(0,0,0,0.12);">
-            &#10003; No active hazard overlays — all perils within normal thresholds for this location
-        </div>
-        """
-        m.get_root().html.add_child(folium.Element(notice))
+    bridge = f"""
+<script>
+document.addEventListener('DOMContentLoaded', function() {{
+  window.addEventListener('message', function(e) {{
+    if (!e.data || e.data.type !== 'prism-toggle') return;
+    var layerMap = {{
+      flood: window['{flood_var}'],
+      bushfire: window['{bushfire_var}'],
+      erosion: window['{erosion_var}'],
+      storm: window['{storm_var}'],
+    }};
+    var mapObj = window['{map_var}'];
+    var layer = layerMap[e.data.layer];
+    if (!layer || !mapObj) return;
+    if (e.data.visible) {{
+      layer.addTo(mapObj);
+    }} else {{
+      mapObj.removeLayer(layer);
+    }}
+  }});
+}});
+</script>
+"""
+    m.get_root().html.add_child(folium.Element(bridge))
 
-    return m._repr_html_()
+    layers_data = {
+        "flood": flood_has_data,
+        "bushfire": bushfire_has_data,
+        "erosion": erosion_has_data,
+        "storm": storm_has_data,
+    }
+    return m._repr_html_(), layers_data
 
 
 def _score_to_color(score: float) -> str:
