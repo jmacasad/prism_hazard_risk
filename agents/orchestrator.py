@@ -35,6 +35,36 @@ def run_assessment(address: str, api_key: str):
                 scores = payload
 
         if scores:
+            # Compute confidence from data completeness — injected after scoring
+            prop = data_bundle.get("get_property_data", {})
+            flood_overlay = data_bundle.get("get_flood_overlay", {})
+            bushfire_overlay = data_bundle.get("get_bushfire_overlay", {})
+
+            conf = 95
+            if not prop.get("estimated_value_aud"):
+                conf -= 5
+            if not prop.get("floor_area_sqm"):
+                conf -= 3
+            if not prop.get("year_built"):
+                conf -= 3
+            if not prop.get("property_type"):
+                conf -= 2
+            if flood_overlay.get("in_flood_planning_zone") is None:
+                conf -= 4
+            if bushfire_overlay.get("bushfire_prone_land") is None:
+                conf -= 3
+            # Missing year_built on a high-erosion coastal property is a material gap —
+            # structural vintage directly affects setback compliance assessment.
+            erosion_score = scores.get("perils", {}).get("erosion", {}).get("score", 0)
+            year_built = prop.get("year_built")
+            if not year_built and erosion_score >= 50:
+                conf -= 8
+            elif year_built and year_built < 1950:
+                # Pre-war construction is known but introduces its own uncertainty —
+                # original materials and foundation standards are unverifiable without inspection.
+                conf -= 3
+            scores["confidence"] = f"{max(55, conf)}%"
+
             yield "scores", None, scores
 
         # Stage 3: Validation
