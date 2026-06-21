@@ -1,97 +1,82 @@
 # PRISM — Demo Briefing Document
 **Property Risk Intelligence & Synthesis Manager**
-*Prepared for underwriter demo use*
+*Prepared for underwriter demo use — updated 21 June 2026*
 
 ---
 
 ## 1. Where Does PRISM Get Its Data?
 
-### Current Prototype (Live vs Simulated)
+All data sources in the current prototype are **live**. There are no simulated fallbacks or mocked datasets.
 
 | Data Source | Status | What It Provides |
 |---|---|---|
-| **Bureau of Meteorology (BoM)** | LIVE | Real-time weather: temperature, wind speed/direction, humidity, fire danger rating |
-| **Geoscience Australia** | LIVE | Seismic hazard PGA, earthquake zone classification via ArcGIS REST API |
-| **OpenStreetMap / Nominatim** | LIVE | Geocoding — converts property address to lat/lon coordinates |
-| **Tavily Web Search** | LIVE | Land area, property type, flood overlay, bushfire overlay — scraped from property.com.au, domain.com.au, realestate.com.au |
-| **CoreLogic / PSMA** | SIMULATED (fallback) | Construction type, roof type, year built, floor area — used when Tavily cannot retrieve live data |
-| **Sentinel-2 NDVI** | SIMULATED | Vegetation density, defensible space assessment, tree canopy cover |
-| **Insurance Reference Services (IRS)** | SIMULATED | Historical claims within 5km radius over 10 years (bushfire, flood, storm) |
-| **Council Flood Planning Overlay** | LIVE via Tavily / SIMULATED fallback | Flood zone status — live where detectable from public listings, simulated otherwise |
-| **RFS / CFA Bushfire Prone Land** | LIVE via Tavily / SIMULATED fallback | Bushfire Prone Land designation — live where detectable from public listings, simulated otherwise |
+| **Bureau of Meteorology (BoM)** | LIVE | Real-time weather: temperature, wind, humidity, fire danger rating |
+| **Geoscience Australia — Seismic** | LIVE | Seismic hazard PGA and earthquake zone via ArcGIS REST API |
+| **Geoscience Australia — Smartline** | LIVE | Coastal geomorphology: sandy, dune, soft rock, hard rock, backing profile classification |
+| **Geoscience Australia — Cyclone** | LIVE | RP50 wind speed at property coordinates (tropical belt) |
+| **Geoscience Australia — Surface Hydrology** | LIVE | Watercourse and water body count within 1km radius |
+| **Geoscience Australia — Emergency Facilities** | LIVE | Nearest fire station distance and type |
+| **DEA Fractional Cover (Digital Earth Australia)** | LIVE | Satellite-derived green vegetation, dry vegetation, and bare soil percentages (NDVI proxy) |
+| **Gemini Grounded Search (Google)** | LIVE | Property value, configuration, land/floor area, year built, flood overlay, bushfire overlay — sourced from domain.com.au, realestate.com.au, state planning portals |
+| **Nominatim / OpenStreetMap** | LIVE | Geocoding — converts address to lat/lon |
 
-> Tavily sources pull from publicly available property listing data. Simulated fallbacks use a deterministic seed based on the property address — meaning the same address always returns the same data, making demo runs consistent and repeatable.
+> **State-aware planning search:** When looking up flood and bushfire overlays, the agent detects the state from the address and directs Gemini to search the correct portal — VicPlan/BMO for VIC, NSW Planning Portal/RFS for NSW, PlanSA for SA, QLD DA System for QLD, DFES for WA, and so on for all 8 states and territories.
 
 ---
 
 ### What You Need for Production
 
-To move PRISM to production, the following real integrations are required:
-
-**Property Data**
-- CoreLogic API (commercial licence) — property attributes, valuation, ownership history
-- PSMA Australia — address and cadastral boundary data
-
-**Satellite & Vegetation**
-- Sentinel-2 via Copernicus Open Access Hub or AWS (free) — NDVI, canopy analysis
-- Planet Labs or NearMap (commercial) — higher resolution, more frequent refresh
-
-**Flood**
-- Each state/council's flood planning maps via their spatial portals (NSW Spatial Services, DELWP, QSpatial)
-- ELVIS (Geoscience Australia) — LIDAR-based Digital Elevation Models for precise floor/flood benchmark comparison
-
-**Bushfire**
-- NSW RFS Bushfire Prone Land layer — available via NSW Spatial Services API
-- AFAC historical fire perimeters — national dataset of past fire boundaries
-
-**Claims History**
-- Insurance Reference Services (IRS) or Insurance Council of Australia (ICA) — real industry claims database (requires membership agreement)
-
-**Coastal Erosion**
-- NSW Coastal Hazard Maps — State Environmental Planning Policy data
-- Geoscience Australia Coastal Erosion Database
-
-**Weather (enhanced)**
-- BoM Fire Weather API (currently used in prototype — no change needed)
-- CSIRO climate projections for 10/25/50 year risk horizon modelling
+| Data Gap | Current | Production |
+|---|---|---|
+| Property valuation | Gemini search (public listing data) | CoreLogic or Geoscape commercial API |
+| Flood overlay | Gemini search (state planning portals) | Direct WFS/WMS from NSW Spatial, DELWP, QSpatial etc. |
+| Bushfire prone land | Gemini search (RFS/CFA/DFES state sites) | Direct API from state fire authorities |
+| Soil classification | Coordinate-based rule (`_estimate_soil_type`) | SoilWise (TERN) or ASRIS national soil database |
+| Coastal erosion | GA Smartline geomorphology (live) | + Council-specific coastal hazard plans and setback lines |
+| Climate projections | Not included | CSIRO for 10/25/50-year risk horizon modelling |
+| Claims history | Not included | Insurance Reference Services (IRS) or ICA database |
 
 ---
 
 ## 2. Risk Analysis — Model or Scientific Method?
 
-PRISM uses a **hybrid approach**: deterministic actuarial scoring functions driven by an AI orchestration agent.
+PRISM uses a **hybrid approach**: deterministic actuarial scoring functions orchestrated by an AI agent.
 
 ### The Scoring Engine (Deterministic)
 
-Each peril is scored by a dedicated Python function in `utils/risk_scoring.py`. These are **not** AI-generated scores — they follow explicit, auditable rules:
+Each peril is scored by a dedicated Python function in `utils/risk_scoring.py`. These are **not** AI-generated numbers — they follow explicit, auditable rules. The AI agent selects and invokes the tools; the arithmetic is always deterministic.
 
 **Bushfire Score (weight: 30%)**
-- +35 pts if property is on Bushfire Prone Land (BPL designation)
-- +20 pts if in Flame Zone (highest BAL rating)
-- +15 pts if defensible space < 20m (AS3959 standard)
-- +8–15 pts based on NDVI vegetation density
-- +0–15 pts based on current BoM fire danger rating (LOW to CATASTROPHIC)
+- +35 pts — Bushfire Prone Land designation confirmed
+- +20 pts — Flame Zone (highest BAL rating)
+- +15 pts — Defensible space < 20m (AS3959 minimum)
+- +8–15 pts — Vegetation density from DEA Fractional Cover (NDVI proxy)
+- +0–15 pts — Current BoM fire danger rating (LOW-MODERATE to CATASTROPHIC)
 
 **Flood Score (weight: 28%)**
-- +12–40 pts based on council flood overlay category (Low/Medium/High)
-- +10–20 pts if floor level is at or below 1-in-100-year flood benchmark
-- +12 pts if property is on an overland flow path
-- +8 pts if stormwater infrastructure is rated undersized
-- +8–15 pts based on historical flood claims within 5km
+- +12–40 pts — Council flood planning overlay (Low / Medium / High category)
+- +8–15 pts — GA Surface Hydrology proximity (watercourses/water bodies within 1km)
+- +10–20 pts — Floor level relative to 1-in-100-year flood benchmark
 
 **Storm Score (weight: 22%)**
-- Base 5 pts coastal exposure
-- +10 pts for tile roofs (higher wind uplift than Colorbond)
-- +10–20 pts based on historical storm claims within 5km
-- +10 pts if built pre-1990 (pre-modern wind resistance standards)
+- Base 5 pts — national baseline exposure
+- +20 pts — Pre-war construction (built before 1950): no engineered wind resistance standards
+- +10 pts — Pre-modern construction (built 1950–1989)
+- +10 pts — Tile roof (higher wind uplift risk vs metal)
+- +10–30 pts — Cyclone risk band from GA Cyclone Hazard Assessment (tropical properties only)
+- Current wind speed is recorded as a contextual observation only — it does **not** affect the score
 
 **Erosion Score (weight: 12%)**
-- +25–45 pts based on coastal erosion classification (Geoscience Australia)
-- +15 pts for coastal sandy clay soil (shrink-swell indicator)
+- 0 pts if not a coastal property (GA Smartline returns no coastal features within 500m)
+- +25–45 pts — Coastal erosion classification from GA Smartline (MODERATE / HIGH)
+- Sandy coasts with confirmed urban/developed backing are capped at MODERATE — sheltered harbour beaches have different erosion dynamics to open-ocean sandy coasts
+- +15 pts — Sandy clay soil (elevated coastal erodibility)
+- +8 pts — High bare soil coverage (>40%)
 
 **Landslip Score (weight: 8%)**
-- +15 pts for clay-bearing soil
-- +10 pts if seismic PGA > 0.1 (Geoscience Australia data)
+- Base 5 pts
+- +15 pts — Clay-bearing soil (shrink-swell and slope instability risk)
+- +10 pts — Seismic hazard PGA > 0.1g (GA data)
 
 ### Overall Score Aggregation
 
@@ -99,96 +84,96 @@ Each peril is scored by a dedicated Python function in `utils/risk_scoring.py`. 
 Overall = (Bushfire × 0.30) + (Flood × 0.28) + (Storm × 0.22) + (Erosion × 0.12) + (Landslip × 0.08)
 ```
 
-| Score Range | Risk Band | Premium Loading |
-|---|---|---|
-| 0–34 | LOW-MODERATE | 0–15% |
-| 35–54 | MODERATE | 15–35% |
-| 55–74 | HIGH | 35–65% |
-| 75–100 | VERY HIGH | 65–90% |
+| Score Range | Risk Band |
+|---|---|
+| 0–34 | LOW-MODERATE |
+| 35–54 | MODERATE |
+| 55–74 | HIGH |
+| 75–100 | VERY HIGH |
 
-### Role of the AI Agent
+> **Note for demo:** A property can have a HIGH individual peril (e.g. erosion 60/100) while remaining in the LOW-MODERATE overall band — because erosion is weighted at only 12%. The mandatory conditions and exclusions triggered by the individual peril score are still applied regardless of the overall band. This is intentional: composite scores are useful for portfolio triage, but individual peril triggers drive policy terms.
 
-The AI agent (Claude Sonnet) acts as the **orchestrator** — it decides the order of tool calls, passes the right data to each scoring function, interprets the outputs, and flags reasoning. The actual score arithmetic is always deterministic and auditable, not generated by the AI. This is intentional: it keeps the scoring explainable and defensible to regulators.
+### Confidence Score
+
+The model calculates a confidence percentage based on data completeness:
+- Starts at 95%
+- –5% if property value unavailable
+- –4% if flood overlay data unavailable
+- –3% each for missing floor area, year built, property type, or bushfire overlay
+- Additional –8% if year built is missing AND erosion ≥ 50 (material gap on a high-erosion coastal property)
+- Additional –3% if year built is known but pre-1950 (original materials/foundations unverifiable without inspection)
 
 ---
 
 ## 3. Validation — What Is Checked and On What Basis?
 
-The Validation & Compliance Agent reviews the completed risk assessment against three criteria:
+The Validation Agent applies **deterministic rule-based review triggers**, not AI judgement, to decide whether human specialist review is required.
 
-### 1. Internal Consistency Check
-- Are peril scores consistent with each other? (e.g. a coastal property with zero erosion risk would be flagged)
-- Are any scores anomalous given the property data? (e.g. very high bushfire score for a CBD property)
-- Does the premium loading align with the overall score band?
+### Human Review Triggers (rule-based — always consistent)
 
-### 2. APRA CPS 220 Compliance
-APRA Prudential Standard CPS 220 (Risk Management) requires insurers to demonstrate:
+| Trigger | Threshold |
+|---|---|
+| Erosion score HIGH | ≥ 50/100 → coastal geotechnical specialist review |
+| Flood score HIGH | ≥ 40/100 → flood engineer or hydrologist review |
+| Overall score HIGH | ≥ 55/100 → senior underwriter sign-off |
+| High-value asset at MODERATE+ risk | Value ≥ $2M AND overall ≥ 35 → mandatory senior UW review |
+| Missing year built on high-erosion coastal property | year_built = null AND erosion ≥ 50 → structural vintage confirmation required |
+| Pre-war construction on high-erosion coastal property | year_built < 1950 AND erosion ≥ 50 → structural engineer inspection required |
+
+### APRA CPS 220 Compliance
+
+APRA Prudential Standard CPS 220 (Risk Management) requires:
 - Systematic identification of material risks
 - Evidence-based assessment methodology
 - Documented audit trail for each decision
 - Human oversight for high-risk decisions
 
-PRISM generates a structured compliance note and audit trail for every assessment confirming these requirements are met.
-
-### 3. Human Review Trigger
-If `overall_score > 70` (HIGH or VERY HIGH risk), PRISM automatically flags the assessment for mandatory human specialist review before binding — consistent with APRA CPS 220 requirements and standard underwriting practice.
-
-> **Important for demo:** Frame validation as the governance layer that makes PRISM production-ready, not just a prototype. The audit trail it generates is what a regulator or internal risk committee would want to see.
+PRISM generates a structured compliance note and audit trail for every assessment. The rule-based review triggers (above) replace subjective AI judgement for the escalation decision — this is the key audit-trail property that makes it defensible to a regulator.
 
 ---
 
 ## 4. Risk Report — Where Does the Data Come From?
 
-The Communication Agent synthesises every data source collected during the assessment into a 7-section underwriter report:
+The Communication Agent produces a **5-section underwriter report**. Critically, sections 4 and 5 (conditions and exclusions) are generated **deterministically from score thresholds**, not by the AI — meaning the same risk profile always produces the same policy terms, with no drift between runs.
 
-| Report Section | Data Sources Used |
+| Report Section | Source |
 |---|---|
-| Executive Summary | Overall score, risk band, premium loading, confidence level |
-| Property Profile | CoreLogic (simulated): value, year built, construction type, roof, area, floor area, council zone |
-| Peril Assessment | All 5 peril scores + factors + BoM weather + satellite NDVI + geological data |
-| Underwriting Action | Risk band + validation compliance notes + human review flag |
-| Policy Conditions & Exclusions | Peril factors + bushfire/flood overlay status |
-| Mitigation Recommendations | Defensible space, construction upgrades, flood resilience actions |
-| Regulatory Notes | APRA CPS 220 audit trail + data source disclosure |
+| **1. Executive Summary** | LLM narrative synthesising overall score, dominant peril, and UW action |
+| **2. Property Profile** | Gemini grounded search (value, config, year built, LGA, areas) |
+| **3. Peril Assessment** | Each peril's score + factors from the scoring engine — LLM narrates from these only |
+| **4. Recommended Underwriting Action** | Validation rule output + deterministic conditions list |
+| **5. Policy Conditions & Exclusions** | Deterministic exclusion rules based on triggered perils and soil/construction data |
 
-The report is written by Claude Sonnet acting as a senior insurance analyst, instructed to use Australian insurance terminology and not soften risk findings. The premium loading stated in the report is locked to the value calculated by the scoring engine — the agent cannot override it.
+> **Key demo point:** Sections 4 and 5 are byte-identical between repeat runs for the same property. An underwriter or compliance team can trust that re-running the assessment won't silently change the policy terms. This was a deliberate architectural fix — an earlier version let the LLM generate conditions free-form, which produced different exclusion lists on repeat runs.
 
 ---
 
-## 5. Risk Map — Can We Make It More Accurate?
+## 5. Risk Map — How It Works
+
+The map (Folium/Leaflet, served as HTML) shows four toggleable overlay layers on a Geoscience Australia basemap.
+
+| Layer | Colour | Renders when | Radius |
+|---|---|---|---|
+| Flood Zone | Blue | `in_flood_planning_zone == True` | 400m |
+| Bushfire Prone Land | Red/orange | `bushfire_prone_land == True` | 700m |
+| Coastal Erosion Buffer | Amber | Erosion score ≥ 20/100 | 250m |
+| Storm Risk Radius | Purple | Storm score ≥ 20/100 | 1,000m |
+
+**When no overlays are triggered** (all four conditions false — e.g. an inner-city Melbourne suburb), the map displays a notice: *"No active hazard overlays — all perils within normal thresholds for this location."* This confirms the blank map is a valid result, not a rendering failure.
 
 ### Current Limitations
 
-The current map uses **radius-based circle approximations** centred on the property coordinates:
-- Flood zone: 400m radius circle (if council overlay flags the property)
-- Bushfire: 700m radius circle (if BPL designation applies)
-- Coastal erosion: 250m radius circle (if erosion score ≥ 20)
-- Storm risk: 1,000m radius circle (if storm score ≥ 20)
+The circles are **indicative, not geometrically accurate** — they show *that* a hazard applies, not the exact boundary. For production:
 
-These are indicative, not geometrically accurate. They show *that* a risk exists, not *exactly where* boundaries fall.
+| Overlay | Data Source for Accurate Polygons |
+|---|---|
+| Flood extent | State spatial portals via WFS — NSW Spatial Services, DELWP, QSpatial |
+| Bushfire prone land | NSW RFS / state fire authority polygon layers |
+| Historical fire perimeters | AFAC national dataset |
+| Coastal erosion setbacks | NSW SEPP Coastal Hazards Maps; council coastal management plans |
+| Property lot boundary | PSMA/Geoscape cadastral data |
 
-### What Accurate Mapping Requires
-
-**Yes — providing property coordinates significantly improves accuracy.** With precise coordinates we can:
-
-| Overlay | Data Source Needed | What It Shows |
-|---|---|---|
-| Flood extent | Council flood planning polygons (NSW Spatial Services, QSpatial, DELWP) | Exact flood planning area boundaries, not circles |
-| Historical flood events | Bureau of Meteorology flood event database | Actual inundation extents from past events |
-| Bushfire prone land | NSW RFS BPL layer / AFAC national dataset | True BPL polygon boundaries |
-| Historical fire perimeters | AFAC / NSW NPWS historical fire mapping | Boundaries of every recorded fire going back decades |
-| Coastal erosion setbacks | NSW Coastal Hazard Maps (SEPP) | 50/100-year erosion setback lines |
-| Storm surge zones | CSIRO / Geoscience Australia | Coastal inundation scenarios by severity |
-| Property cadastral boundary | NSW Spatial Services / PSMA | Exact property lot boundary overlaid on all hazards |
-
-### Recommended Approach for Production Map
-
-1. **Use real polygon data** from state spatial portals (all free via WFS/WMS APIs) instead of radius circles
-2. **Overlay historical event data** — past fire perimeters and flood extents are the most compelling for underwriters as they show what has *actually happened* near the property
-3. **Add a timeline slider** — let the underwriter see how hazard zones have changed over time (e.g. expanding coastal erosion setbacks)
-4. **Show the property lot boundary** — using cadastral data so the underwriter sees exactly what portion of the block is within each hazard zone
-
-> **For the demo:** The current map is a proof-of-concept. The data sources listed above are all publicly available. With 2–3 weeks of integration work, the map could show exact polygon overlays with historical data — which would be a significant differentiator from existing underwriting tools.
+With direct spatial API integrations, the map could show exact polygon overlays with historical event data — a significant differentiator from existing underwriting tools.
 
 ---
 
